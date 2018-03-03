@@ -36,11 +36,10 @@ int main( int argc, char **argv ) {
     set_size(n, binslength);
     int nn = sqrt(binslength);
 
-    vector<list<particle_t *> > bins;
+    vector<vector<particle_t *> > bins(binslength);
 
-    bins.reserve(binslength);
     for (int i = 0; i < binslength; ++i) {
-        bins.push_back(list<particle_t *>(0));
+        bins.push_back(vector<particle_t *>());
     }
     particle_t *particles = (particle_t *) malloc(n * sizeof(particle_t));
 
@@ -55,6 +54,7 @@ int main( int argc, char **argv ) {
     {
         numthreads = omp_get_num_threads();
     }
+
     {
     for (int step = 0; step < NSTEPS; step++) {
         navg = 0;
@@ -63,35 +63,30 @@ int main( int argc, char **argv ) {
         //
         //  compute forces
         //
-
+        #pragma omp  parallel for //schedule(auto) reduction (+:davg) reduction(+:navg)
         for (int l = nn + 1; l < binslength - nn; l += nn) {
 
-            #pragma omp parallel for schedule(dynamic) reduction (+:davg) reduction(+:navg)
+
             for (int i = 0 ;i < nn - 2; ++i) {
-
-                int currentbinlength = bins[i+l].size();
-                std::list<particle_t *>::iterator p = bins[i+l].begin();
-                for (int j = 0; j < currentbinlength; ++j) {
-                    int pos1 = i+l;
-
-                    std::list<particle_t *>::iterator end;
-
-                    std::list<particle_t *>::iterator it;
+                int pos1 = i+l;
+                unsigned long currentbinlength = bins[pos1].size();
 
 
+                int pos;
+                particle_t *p;
+                for (unsigned long j = 0; j < currentbinlength; ++j) {
 
-                    int pos = pos1;
-                    //p = bins[pos].begin();
+
+                    pos = pos1;
                     //std::advance(p, j);
-
-                    (**p).ay = (**p).ax = 0;
+                     p = bins[pos1][j];
+                    (*p).ay = (*p).ax = 0;
 
                     //apply forces to particle from same bin
 
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
+
+                    for (int k =0, length = bins[pos].size(); k < length; ++k) {
+                        apply_force(*p, *bins[pos][k], &dmin, &davg, &navg);
 
                     }
 
@@ -100,90 +95,86 @@ int main( int argc, char **argv ) {
                     //bin to the left
                     pos = pos1 - 1;
 
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
+
+                    for (int k =0, length = bins[pos].size(); k < length; ++k) {
+                        apply_force(*p, *bins[pos][k], &dmin, &davg, &navg);
+
                     }
 
                     //bin to the right
                     pos = pos1 + 1;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
+                    for (int k =0, length = bins[pos].size(); k < length; ++k) {
+                        apply_force(*p, *bins[pos][k], &dmin, &davg, &navg);
+
                     }
 
                     //bin above and left
                     pos = pos1 - nn - 1;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
 
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
+                    for (int k =0, length = bins[pos].size(); k < length; ++k) {
+                        apply_force(*p, *bins[pos][k], &dmin, &davg, &navg);
+
                     }
 
                     //bin above
                     pos = i + l - nn;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
 
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
+                    for (int k =0, length = bins[pos].size(); k < length; ++k) {
+                        apply_force(*p, *bins[pos][k], &dmin, &davg, &navg);
+
                     }
 
                     //bin above and right
                     pos = pos1 - nn + 1;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
+                    for (int k =0, length = bins[pos].size(); k < length; ++k) {
+                        apply_force(*p, *bins[pos][k], &dmin, &davg, &navg);
+
                     }
 
                     //bin below and left
                     pos = pos1 + nn - 1;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
+                    for (int k =0, length = bins[pos].size(); k < length; ++k) {
+                        apply_force(*p, *bins[pos][k], &dmin, &davg, &navg);
+
                     }
 
                     //bin below
                     pos = pos1 + nn;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
+                    for (int k =0, length = bins[pos].size(); k < length; ++k) {
+                        apply_force(*p, *bins[pos][k], &dmin, &davg, &navg);
+
                     }
 
                     //bin below and right
                     pos = pos1 + nn + 1;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
+                    for (int k =0, length = bins[pos].size(); k < length; ++k) {
+                        apply_force(*p, *bins[pos][k], &dmin, &davg, &navg);
+
                     }
-                    ++p;
+
                 }
 
             }
         }
 
-        #pragma omp for
+        #pragma omp  for schedule(dynamic)
         for (int i = 0; i < binslength; ++i) {
-            bins[i].clear();
+            vector<particle_t*> temp;
+            //temp.reserve(20);
+            bins[i].swap(temp);
+            //bins[i].clear();
         }
 
 
-        //
-        //  move particles
-        //
-        #pragma omp for
+        //bins = vector<list<particle_t *> >(binslength);;
+
+        #pragma omp  for simd
         for (int i = 0; i < n; ++i) {
             move(particles[i], bins);
         }
-
-
+        //
+        //  move particles
+        //
         if (find_option(argc, argv, "-no") == -1) {
             //
             // Computing statistical data
