@@ -91,7 +91,7 @@ void init_particles( int n, particle_t *p, std::vector<std::list<particle_t*> > 
         p[i].vy = drand48()*2-1;
 
 
-        v[x*rowSize + y].push_front(&p[i]);
+        v[x*rowSize + y].push_back(&p[i]);
     }
     free( shuffle );
 }
@@ -137,10 +137,12 @@ void move( particle_t &p, std::vector<std::list<particle_t*> > &v )
     //  slightly simplified Velocity Verlet integration
     //  conserves energy better than explicit Euler method
     //
-    p.vx += p.ax * dt;
-    p.vy += p.ay * dt;
-    p.x  += p.vx * dt;
-    p.y  += p.vy * dt;
+
+        p.vx += p.ax * dt;
+        p.vy += p.ay * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+
 
     //
     //  bounce from walls
@@ -155,11 +157,12 @@ void move( particle_t &p, std::vector<std::list<particle_t*> > &v )
         p.y  = p.y < 0 ? -p.y : 2*size-p.y;
         p.vy = -p.vy;
     }
-    int x = floor(p.x/myconst)+1;
-    int y = floor(p.y/myconst)+1;
-    #pragma omp critical
+
+    int x = floor(p.x / myconst) + 1;
+    int y = floor(p.y / myconst) + 1;
+#pragma omp critical
     {
-        v[x*rowSize + y].push_front(&p);
+    v[x * rowSize + y].push_back(&p);
     }
 }
 

@@ -56,155 +56,155 @@ int main( int argc, char **argv ) {
         numthreads = omp_get_num_threads();
     }
     {
-    for (int step = 0; step < NSTEPS; step++) {
-        navg = 0;
-        davg = 0.0;
-        dmin = 1.0;
-        //
-        //  compute forces
-        //
-
-        for (int l = nn + 1; l < binslength - nn; l += nn) {
-
-            #pragma omp parallel for schedule(dynamic) reduction (+:davg) reduction(+:navg)
-            for (int i = 0 ;i < nn - 2; ++i) {
-
-                int currentbinlength = bins[i+l].size();
-                std::list<particle_t *>::iterator p = bins[i+l].begin();
-                for (int j = 0; j < currentbinlength; ++j) {
-                    int pos1 = i+l;
-
-                    std::list<particle_t *>::iterator end;
-
-                    std::list<particle_t *>::iterator it;
+        for (int step = 0; step < NSTEPS; step++) {
+            navg = 0;
+            davg = 0.0;
+            dmin = 1.0;
+            //
+            //  compute forces
+            //
+            #pragma omp parallel for schedule(dynamic,9) reduction (+:davg) reduction(+:navg)
+            for (int l = nn + 1; l < binslength - nn; l += nn) {
 
 
+                for (int i = 0 ;i < nn - 2; ++i) {
 
-                    int pos = pos1;
-                    //p = bins[pos].begin();
-                    //std::advance(p, j);
+                    int currentbinlength = bins[i+l].size();
+                    std::list<particle_t *>::iterator p = bins[i+l].begin();
+                    for (int j = 0; j < currentbinlength; ++j) {
+                        int pos1 = i+l;
 
-                    (**p).ay = (**p).ax = 0;
+                        std::list<particle_t *>::iterator end;
 
-                    //apply forces to particle from same bin
+                        std::list<particle_t *>::iterator it;
 
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
 
+
+                        int pos = pos1;
+                        //p = bins[pos].begin();
+                        //std::advance(p, j);
+
+                        (**p).ay = (**p).ax = 0;
+
+                        //apply forces to particle from same bin
+
+                        it = bins[pos].begin();
+                        end = bins[pos].end();
+                        for (; it != end; ++it) {
+                            apply_force(**p, **it, &dmin, &davg, &navg);
+
+                        }
+
+                        //apply forces to particle from surrounding bins
+
+                        //bin to the left
+                        pos = pos1 - 1;
+
+                        it = bins[pos].begin();
+                        end = bins[pos].end();
+                        for (; it != end; ++it) {
+                            apply_force(**p, **it, &dmin, &davg, &navg);
+                        }
+
+                        //bin to the right
+                        pos = pos1 + 1;
+                        it = bins[pos].begin();
+                        end = bins[pos].end();
+                        for (; it != end; ++it) {
+                            apply_force(**p, **it, &dmin, &davg, &navg);
+                        }
+
+                        //bin above and left
+                        pos = pos1 - nn - 1;
+                        it = bins[pos].begin();
+                        end = bins[pos].end();
+
+                        for (; it != end; ++it) {
+                            apply_force(**p, **it, &dmin, &davg, &navg);
+                        }
+
+                        //bin above
+                        pos = i + l - nn;
+                        it = bins[pos].begin();
+                        end = bins[pos].end();
+
+                        for (; it != end; ++it) {
+                            apply_force(**p, **it, &dmin, &davg, &navg);
+                        }
+
+                        //bin above and right
+                        pos = pos1 - nn + 1;
+                        it = bins[pos].begin();
+                        end = bins[pos].end();
+                        for (; it != end; ++it) {
+                            apply_force(**p, **it, &dmin, &davg, &navg);
+                        }
+
+                        //bin below and left
+                        pos = pos1 + nn - 1;
+                        it = bins[pos].begin();
+                        end = bins[pos].end();
+                        for (; it != end; ++it) {
+                            apply_force(**p, **it, &dmin, &davg, &navg);
+                        }
+
+                        //bin below
+                        pos = pos1 + nn;
+                        it = bins[pos].begin();
+                        end = bins[pos].end();
+                        for (; it != end; ++it) {
+                            apply_force(**p, **it, &dmin, &davg, &navg);
+                        }
+
+                        //bin below and right
+                        pos = pos1 + nn + 1;
+                        it = bins[pos].begin();
+                        end = bins[pos].end();
+                        for (; it != end; ++it) {
+                            apply_force(**p, **it, &dmin, &davg, &navg);
+                        }
+                        ++p;
                     }
 
-                    //apply forces to particle from surrounding bins
+                }
+            }
 
-                    //bin to the left
-                    pos = pos1 - 1;
+            #pragma omp parallel for
+            for (int i = 0; i < binslength; ++i) {
+                bins[i].clear();
+            }
 
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
-                    }
 
-                    //bin to the right
-                    pos = pos1 + 1;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
-                    }
+            //
+            //  move particles
+            //
+            #pragma omp parallel for
+            for (int i = 0; i < n; ++i) {
+                move(particles[i], bins);
+            }
 
-                    //bin above and left
-                    pos = pos1 - nn - 1;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
 
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
-                    }
+            if (find_option(argc, argv, "-no") == -1) {
+                //
+                // Computing statistical data
+                //
 
-                    //bin above
-                    pos = i + l - nn;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
-                    }
-
-                    //bin above and right
-                    pos = pos1 - nn + 1;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
-                    }
-
-                    //bin below and left
-                    pos = pos1 + nn - 1;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
-                    }
-
-                    //bin below
-                    pos = pos1 + nn;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
-                    }
-
-                    //bin below and right
-                    pos = pos1 + nn + 1;
-                    it = bins[pos].begin();
-                    end = bins[pos].end();
-                    for (; it != end; ++it) {
-                        apply_force(**p, **it, &dmin, &davg, &navg);
-                    }
-                    ++p;
+                if (navg) {
+                    absavg += davg / navg;
+                    nabsavg++;
                 }
 
+                if (dmin < absmin) absmin = dmin;
+
+                //
+                //  save if necessary
+                //
+
+                if (fsave && (step % SAVEFREQ) == 0)
+                    save(fsave, n, particles);
             }
-        }
-
-        #pragma omp for
-        for (int i = 0; i < binslength; ++i) {
-            bins[i].clear();
-        }
-
-
-        //
-        //  move particles
-        //
-        #pragma omp for
-        for (int i = 0; i < n; ++i) {
-            move(particles[i], bins);
-        }
-
-
-        if (find_option(argc, argv, "-no") == -1) {
-            //
-            // Computing statistical data
-            //
-
-            if (navg) {
-                absavg += davg / navg;
-                nabsavg++;
-            }
-
-            if (dmin < absmin) absmin = dmin;
-
-            //
-            //  save if necessary
-            //
-
-            if (fsave && (step % SAVEFREQ) == 0)
-                save(fsave, n, particles);
         }
     }
-}
     simulation_time = read_timer( ) - simulation_time;
 
     printf("n = %d, threads = %d, simulation time = %g seconds",n,numthreads,simulation_time);
