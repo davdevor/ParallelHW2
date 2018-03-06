@@ -6,7 +6,7 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
-#include "common.h"
+#include "commonopenmp.h"
 
 double size;
 int rowSize;
@@ -40,11 +40,20 @@ double read_timer( )
 //
 //  keep density constant
 //
-void set_size( int n, int &b )
+omp_lock_t* set_size( int n, int &b,int numthreads)
 {
     size = sqrt( density * n );
-    rowSize = ceil(size/myconst)+2;
+    rowSize = ceil(size/myconst);
+    int quotient = rowSize/(9);
+    int remainder = rowSize%(9);
+    if(remainder!=0){
+        rowSize = 9 *(quotient+1);
+    }
+    rowSize+=2;
+    omp_lock_t *temp = (omp_lock_t*)malloc(sizeof(omp_lock_t)*rowSize*rowSize);
+
     b = rowSize*rowSize;
+    return temp;
 }
 
 //
@@ -131,7 +140,7 @@ void apply_force( particle_t &particle, particle_t &neighbor , double *dmin, dou
 //
 //  integrate the ODE
 //
-void move( particle_t &p, std::vector<std::list<particle_t*> > &v )
+void move( particle_t &p, std::vector<std::list<particle_t*> > &v,omp_lock_t *lock )
 {
     //
     //  slightly simplified Velocity Verlet integration
@@ -158,12 +167,15 @@ void move( particle_t &p, std::vector<std::list<particle_t*> > &v )
         p.vy = -p.vy;
     }
 
-    int x = floor(p.x / myconst) + 1;
-    int y = floor(p.y / myconst) + 1;
-#pragma omp critical
-    {
-    v[x * rowSize + y].push_back(&p);
-    }
+    int x = floor(p.x / .08) + 1;
+    int y = floor(p.y / .08) + 1;
+    int pos = x * rowSize + y;
+    omp_set_lock(&(lock[pos]));
+
+    v[pos].push_back(&p);
+    omp_unset_lock(&(lock[pos]));
+
+
 }
 
 //

@@ -3,7 +3,7 @@
 #include <assert.h>
 #include <math.h>
 #include "iostream"
-#include "common.h"
+#include "commonopenmp.h"
 #include "omp.h"
 
 //
@@ -24,7 +24,7 @@ int main( int argc, char **argv ) {
         return 0;
     }
 
-    int n = read_int(argc, argv, "-n", 8000);
+    int n = read_int(argc, argv, "-n", 1000);
 
     char *savename = read_string(argc, argv, "-o", NULL);
     char *sumname = read_string(argc, argv, "-s", NULL);
@@ -33,9 +33,17 @@ int main( int argc, char **argv ) {
     FILE *fsum = sumname ? fopen(sumname, "a") : NULL;
     int binslength = 0;
     //
-    set_size(n, binslength);
-    int nn = sqrt(binslength);
+    int numthreads;
 
+    #pragma omp parallel
+    {
+        numthreads = omp_get_num_threads();
+    }
+
+    omp_lock_t *lock;
+    lock = set_size(n, binslength,numthreads);
+    int nn = sqrt(binslength);
+    int myschedule = (nn-2)/numthreads;
     vector<list<particle_t *> > bins;
 
     bins.reserve(binslength);
@@ -49,12 +57,8 @@ int main( int argc, char **argv ) {
     //
     //  simulate a number of time steps
     //
-    int numthreads;
     double simulation_time = read_timer();
-    #pragma omp parallel
-    {
-        numthreads = omp_get_num_threads();
-    }
+
     {
         for (int step = 0; step < NSTEPS; step++) {
             navg = 0;
@@ -63,7 +67,7 @@ int main( int argc, char **argv ) {
             //
             //  compute forces
             //
-            #pragma omp parallel for schedule(dynamic,9) reduction (+:davg) reduction(+:navg)
+            #pragma omp parallel for schedule(static,9)  reduction (+:davg) reduction(+:navg)
             for (int l = nn + 1; l < binslength - nn; l += nn) {
 
 
@@ -169,8 +173,8 @@ int main( int argc, char **argv ) {
                 }
             }
 
-            #pragma omp parallel for
-            for (int i = 0; i < binslength; ++i) {
+            #pragma omp parallel for schedule(static,9)
+            for (int i = nn; i < binslength; ++i) {
                 bins[i].clear();
             }
 
@@ -178,9 +182,9 @@ int main( int argc, char **argv ) {
             //
             //  move particles
             //
-            #pragma omp parallel for
+            #pragma omp parallel for shared(lock,bins)
             for (int i = 0; i < n; ++i) {
-                move(particles[i], bins);
+                move(particles[i], bins,lock);
             }
 
 
