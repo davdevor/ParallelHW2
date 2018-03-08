@@ -19,7 +19,6 @@ int rowSize;
 #define cutoff  0.01
 #define min_r   (cutoff/100)
 #define dt      0.0005
-#define myconst .008
 //
 //  timer
 //
@@ -40,7 +39,7 @@ double read_timer( )
 //
 //  keep density constant
 //
-omp_lock_t* set_size( int n, int &b,int numthreads)
+void set_size( int n, int &b,int numthreads)
 {
     size = sqrt( density * n );
     rowSize = ceil(size/myconst);
@@ -50,10 +49,7 @@ omp_lock_t* set_size( int n, int &b,int numthreads)
         rowSize = 9 *(quotient+1);
     }
     rowSize+=2;
-    omp_lock_t *temp = (omp_lock_t*)malloc(sizeof(omp_lock_t)*rowSize*rowSize);
-
     b = rowSize*rowSize;
-    return temp;
 }
 
 //
@@ -100,7 +96,7 @@ void init_particles( int n, particle_t *p, std::vector<std::list<particle_t*> > 
         p[i].vy = drand48()*2-1;
 
 
-        v[x*rowSize + y].push_back(&p[i]);
+        v[x*rowSize + y].push_front(&p[i]);
     }
     free( shuffle );
 }
@@ -167,14 +163,15 @@ void move( particle_t &p, std::vector<std::list<particle_t*> > &v,omp_lock_t *lo
         p.vy = -p.vy;
     }
 
-    int x = floor(p.x / .08) + 1;
-    int y = floor(p.y / .08) + 1;
+    int x = floor(p.x / myconst) + 1;
+    int y = floor(p.y / myconst) + 1;
     int pos = x * rowSize + y;
-    omp_set_lock(&(lock[pos]));
-
-    v[pos].push_back(&p);
+   omp_set_lock(&(lock[pos]));
+//#pragma omp critical
+    {
+        v[pos].push_front(&p);
+    }
     omp_unset_lock(&(lock[pos]));
-
 
 }
 

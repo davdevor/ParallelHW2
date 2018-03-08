@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <math.h>
+#include <algorithm>
 #include "iostream"
 #include "commonopenmp.h"
 #include "omp.h"
@@ -24,8 +25,7 @@ int main( int argc, char **argv ) {
         return 0;
     }
 
-    int n = read_int(argc, argv, "-n", 1000);
-
+    int n = read_int(argc, argv, "-n", 8000);
     char *savename = read_string(argc, argv, "-o", NULL);
     char *sumname = read_string(argc, argv, "-s", NULL);
 
@@ -40,8 +40,13 @@ int main( int argc, char **argv ) {
         numthreads = omp_get_num_threads();
     }
 
-    omp_lock_t *lock;
-    lock = set_size(n, binslength,numthreads);
+
+    set_size(n, binslength,numthreads);
+
+    omp_lock_t lock[binslength];
+    for(int i = 0; i < binslength; ++i){
+        omp_init_lock(&lock[i]);
+    }
     int nn = sqrt(binslength);
     int myschedule = (nn-2)/numthreads;
     vector<list<particle_t *> > bins;
@@ -51,7 +56,6 @@ int main( int argc, char **argv ) {
         bins.push_back(list<particle_t *>(0));
     }
     particle_t *particles = (particle_t *) malloc(n * sizeof(particle_t));
-
     init_particles(n, particles, bins);
 
     //
@@ -67,27 +71,25 @@ int main( int argc, char **argv ) {
             //
             //  compute forces
             //
-            #pragma omp parallel for schedule(static,9)  reduction (+:davg) reduction(+:navg)
+            #pragma omp parallel for schedule(static,9) num_threads(numthreads)  reduction (+:davg) reduction(+:navg)
             for (int l = nn + 1; l < binslength - nn; l += nn) {
 
 
+                //#pragma omp task
                 for (int i = 0 ;i < nn - 2; ++i) {
+                    std::list<particle_t *>::iterator end;
+                    std::list<particle_t *>::iterator it;
+                    std::list<particle_t *>::iterator p;
+                    int pos1;
+                    int pos;
+                    int currentbinlength;
+                     pos1 = i+l;
+                    currentbinlength= bins[pos1].size();
+                    p = bins[pos1].begin();
 
-                    int currentbinlength = bins[i+l].size();
-                    std::list<particle_t *>::iterator p = bins[i+l].begin();
                     for (int j = 0; j < currentbinlength; ++j) {
-                        int pos1 = i+l;
 
-                        std::list<particle_t *>::iterator end;
-
-                        std::list<particle_t *>::iterator it;
-
-
-
-                        int pos = pos1;
-                        //p = bins[pos].begin();
-                        //std::advance(p, j);
-
+                        pos = pos1;
                         (**p).ay = (**p).ax = 0;
 
                         //apply forces to particle from same bin
@@ -173,7 +175,6 @@ int main( int argc, char **argv ) {
                 }
             }
 
-            #pragma omp parallel for schedule(static,9)
             for (int i = nn; i < binslength; ++i) {
                 bins[i].clear();
             }
@@ -182,9 +183,10 @@ int main( int argc, char **argv ) {
             //
             //  move particles
             //
-            #pragma omp parallel for shared(lock,bins)
+            #pragma omp parallel for schedule(static)//shared(lock,bins)
             for (int i = 0; i < n; ++i) {
                 move(particles[i], bins,lock);
+
             }
 
 

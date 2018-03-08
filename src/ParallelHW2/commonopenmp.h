@@ -3,6 +3,8 @@
 #include "list"
 #include "vector"
 #include "omp.h"
+#define myconst .008
+
 inline int min( int a, int b ) { return a < b ? a : b; }
 inline int max( int a, int b ) { return a > b ? a : b; }
 
@@ -34,10 +36,10 @@ double read_timer( );
 //
 //  simulation routines
 //
-omp_lock_t* set_size( int n, int &b , int numthreads);
+void set_size( int n, int &b , int numthreads);
 void init_particles( int n, particle_t *p,std::vector<std::list<particle_t*> > &v);
 void apply_force( particle_t &particle, particle_t &neighbor , double *dmin, double *davg, int *navg);
-void move( particle_t &p,std::vector<std::list<particle_t *> > &v ,omp_lock_t *lock );
+void move( particle_t &p,std::vector<std::list<particle_t *> > &v,omp_lock_t *lock );
 
 
 //
