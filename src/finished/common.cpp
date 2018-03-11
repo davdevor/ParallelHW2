@@ -19,7 +19,7 @@ int rowSize;
 #define cutoff  0.01
 #define min_r   (cutoff/100)
 #define dt      0.0005
-#define myconst .01
+#define myconst .008
 //
 //  timer
 //
