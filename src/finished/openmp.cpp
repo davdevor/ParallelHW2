@@ -211,6 +211,7 @@ int main( int argc, char **argv ) {
             }
         }
     }
+
     simulation_time = read_timer( ) - simulation_time;
 
     printf("n = %d, threads = %d, simulation time = %g seconds",n,numthreads,simulation_time);
@@ -242,6 +243,9 @@ int main( int argc, char **argv ) {
     if( fsum )
         fclose( fsum );
     free( particles );
+    for(int i =0; i < binslength; ++i){
+        omp_destroy_lock(&lock[i]);
+    }
     if( fsave )
         fclose( fsave );
 
