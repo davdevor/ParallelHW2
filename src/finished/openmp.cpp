@@ -25,7 +25,7 @@ int main( int argc, char **argv ) {
         return 0;
     }
 
-    int n = read_int(argc, argv, "-n", 8000);
+    int n = read_int(argc, argv, "-n", 1000);
     char *savename = read_string(argc, argv, "-o", NULL);
     char *sumname = read_string(argc, argv, "-s", NULL);
 
@@ -174,7 +174,7 @@ int main( int argc, char **argv ) {
 
                 }
             }
-
+            #pragma omp parallel for
             for (int i = nn; i < binslength; ++i) {
                 bins[i].clear();
             }
@@ -183,7 +183,7 @@ int main( int argc, char **argv ) {
             //
             //  move particles
             //
-            #pragma omp parallel for schedule(static)//shared(lock,bins)
+            #pragma omp parallel for schedule(dynamic)
             for (int i = 0; i < n; ++i) {
                 move(particles[i], bins,lock);
 
@@ -211,6 +211,7 @@ int main( int argc, char **argv ) {
             }
         }
     }
+
     simulation_time = read_timer( ) - simulation_time;
 
     printf("n = %d, threads = %d, simulation time = %g seconds",n,numthreads,simulation_time);
@@ -242,6 +243,9 @@ int main( int argc, char **argv ) {
     if( fsum )
         fclose( fsum );
     free( particles );
+    for(int i =0; i < binslength; ++i){
+        omp_destroy_lock(&lock[i]);
+    }
     if( fsave )
         fclose( fsave );
 

@@ -53,7 +53,6 @@ int main( int argc, char **argv )
     //  simulate a number of time steps
     //
     double simulation_time = read_timer( );
-    #pragma omp parallel private(dmin)
     {
         for (int step = 0; step < NSTEPS; step++) {
             navg = 0;
@@ -156,12 +155,7 @@ int main( int argc, char **argv )
 
                 }
             }
-            /*int temp = 0;
-            for(int i = nn; i < (nn* nn)-nn-2; ++i){
-                temp+= bins[i].size();
-            }*/
             //clear bins
-            #pragma omp for
             for (int i = 0; i < binslength; ++i) {
                 bins[i].clear();
             }
@@ -170,7 +164,6 @@ int main( int argc, char **argv )
             //
             //  move particles
             //
-            #pragma omp for
             for (int i = 0; i < n; i++)
                 move(particles[i], bins);
 

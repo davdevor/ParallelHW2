@@ -6,7 +6,7 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
-#include "common.h"
+#include "commonopenmp.h"
 
 double size;
 int rowSize;
@@ -19,7 +19,6 @@ int rowSize;
 #define cutoff  0.01
 #define min_r   (cutoff/100)
 #define dt      0.0005
-#define myconst .008
 //
 //  timer
 //
@@ -40,10 +39,16 @@ double read_timer( )
 //
 //  keep density constant
 //
-void set_size( int n, int &b )
+void set_size( int n, int &b,int numthreads)
 {
     size = sqrt( density * n );
-    rowSize = ceil(size/myconst)+2;
+    rowSize = ceil(size/myconst);
+    int quotient = rowSize/(9);
+    int remainder = rowSize%(9);
+    if(remainder!=0){
+        rowSize = 9 *(quotient+1);
+    }
+    rowSize+=2;
     b = rowSize*rowSize;
 }
 
@@ -93,10 +98,6 @@ void init_particles( int n, particle_t *p, std::vector<std::list<particle_t*> > 
 
         v[x*rowSize + y].push_front(&p[i]);
     }
-    //int total = 0;
-    /*for(int i = rowSize; i < (rowSize* rowSize)-rowSize-2; ++i){
-        total+= v[i].size();
-    }*/
     free( shuffle );
 }
 
@@ -135,16 +136,18 @@ void apply_force( particle_t &particle, particle_t &neighbor , double *dmin, dou
 //
 //  integrate the ODE
 //
-void move( particle_t &p, std::vector<std::list<particle_t*> > &v )
+void move( particle_t &p, std::vector<std::list<particle_t*> > &v,omp_lock_t *lock )
 {
     //
     //  slightly simplified Velocity Verlet integration
     //  conserves energy better than explicit Euler method
     //
-    p.vx += p.ax * dt;
-    p.vy += p.ay * dt;
-    p.x  += p.vx * dt;
-    p.y  += p.vy * dt;
+
+        p.vx += p.ax * dt;
+        p.vy += p.ay * dt;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+
 
     //
     //  bounce from walls
@@ -159,9 +162,16 @@ void move( particle_t &p, std::vector<std::list<particle_t*> > &v )
         p.y  = p.y < 0 ? -p.y : 2*size-p.y;
         p.vy = -p.vy;
     }
-    int x = floor(p.x/myconst)+1;
-    int y = floor(p.y/myconst)+1;
-    v[x*rowSize + y].push_front(&p);
+
+    int x = floor(p.x / myconst) + 1;
+    int y = floor(p.y / myconst) + 1;
+    int pos = x * rowSize + y;
+    omp_set_lock(&(lock[pos]));
+    {
+        v[pos].push_front(&p);
+    }
+    omp_unset_lock(&(lock[pos]));
+
 }
 
 //
