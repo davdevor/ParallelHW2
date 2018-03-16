@@ -34,7 +34,6 @@ int main( int argc, char **argv )
     FILE *fsave = savename ? fopen( savename, "w" ) : NULL;
     FILE *fsum = sumname ? fopen ( sumname, "a" ) : NULL;
     int binslength = 0;
-    //
     set_size( n , binslength);
     int nn = sqrt(binslength);
 
@@ -44,7 +43,6 @@ int main( int argc, char **argv )
     for(int i = 0; i < binslength; ++i) {
         bins.push_back(list<particle_t *>(0));
     }
-    list<particle_t*>::iterator it = bins[5328].begin();
     particle_t *particles = (particle_t*) malloc( n * sizeof(particle_t) );
 
     init_particles( n, particles, bins );
@@ -69,7 +67,6 @@ int main( int argc, char **argv )
                 for (int i = 0, pos1 = l; i < nn - 2; ++i, ++pos1) {
                     currentbinlength = bins[pos1].size();
 
-                    //total += currentbinlength;
                     //loop trough all particles in current bin
                     for (int j = 0; j < currentbinlength; j++) {
                         pos = pos1;
