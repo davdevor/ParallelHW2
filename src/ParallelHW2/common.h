@@ -2,6 +2,8 @@
 #define __CS267_COMMON_H__
 #include "list"
 #include "vector"
+#define myconst .008
+
 inline int min( int a, int b ) { return a < b ? a : b; }
 inline int max( int a, int b ) { return a > b ? a : b; }
 
@@ -36,7 +38,7 @@ double read_timer( );
 void set_size( int n, int &b );
 void init_particles( int n, particle_t *p,std::vector<std::list<particle_t*> > &v);
 void apply_force( particle_t &particle, particle_t &neighbor , double *dmin, double *davg, int *navg);
-void move( particle_t &p,std::vector<std::list<particle_t *> > &v  );
+void move( particle_t &p);
 
 
 //

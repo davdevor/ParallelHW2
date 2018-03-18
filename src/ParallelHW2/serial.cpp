@@ -1,7 +1,7 @@
 #include <mpi/mpi.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
+#include <cmath>
 #include "common.h"
 
 
@@ -13,6 +13,8 @@ int main( int argc, char **argv )
 {
     int navg,nabsavg=0;
     double davg,dmin, absmin=1.0, absavg=0.0;
+    double rdavg,rdmin;
+    int rnavg;
 
     if( find_option( argc, argv, "-h" ) >= 0 )
     {
@@ -42,7 +44,6 @@ int main( int argc, char **argv )
     //
     FILE *fsave = savename && rank == 0 ? fopen( savename, "w" ) : NULL;
     FILE *fsum = sumname && rank == 0 ? fopen ( sumname, "a" ) : NULL;
-
     MPI_Datatype PARTICLE;
     MPI_Type_contiguous( 6, MPI_DOUBLE, &PARTICLE );
     MPI_Type_commit( &PARTICLE );
@@ -51,17 +52,75 @@ int main( int argc, char **argv )
     set_size( n , binslength);
     int nn = sqrt(binslength);
 
-    vector<list<particle_t*> > bins;
 
+
+
+    vector<list<particle_t*> > bins;
+    particle_t *particles = (particle_t *) malloc(n * sizeof(particle_t));
+
+    int *localCount = (int*) malloc(sizeof(int));
+    particle_t *tempP = (particle_t *) malloc(n * sizeof(particle_t));
+    particle_t *local = (particle_t *) malloc(n * sizeof(particle_t));
+    int *partition_sizes = (int*) malloc( n_proc * sizeof(int) );
+    int *partition_offsets = (int*) malloc( n_proc+1 * sizeof(int) );
     bins.reserve(binslength);
-    for(int i = 0; i < binslength; ++i) {
+    for (int i = 0; i < binslength; ++i) {
         bins.push_back(list<particle_t *>(0));
     }
+    partition_offsets[0] = 0;
+    partition_sizes[0] = 0;
 
-    particle_t *particles = (particle_t*) malloc( n * sizeof(particle_t) );
+    //get particles out of bins and order them in a list to be sent to other processes
+    if(rank == 0) {
+        init_particles(n, particles, bins);
+        int lengthper = binslength/n_proc;
 
-    init_particles( n, particles, bins );
-    
+        for(int i = 1; i < n_proc; ++i){
+            int count = 0;
+            for(int j = 0; j < lengthper; ++j){
+
+                if(j = lengthper-nn){
+                    partition_offsets[i+1] = count;
+                }
+                //x*rowSize + y
+                while(bins[i*nn+j].size()!=0)
+                tempP[j+partition_sizes[i-1]] = *bins[i*nn+j].front();
+                bins[i*nn+j].pop_front();
+                ++count;
+            }
+            partition_sizes[i] = count;
+        }
+        //send to each process how many particles to receive
+        int *x = new int;
+        for(int i =1; i < n_proc; ++i){
+            *x = partition_sizes[i]+(partition_sizes[i-1]-partition_offsets[i]);
+            MPI_Send(x,1,MPI_INT,i,0,MPI_COMM_WORLD);
+        }
+    }
+    else{
+        MPI_Recv(localCount,1,MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+    }
+    if(rank == 0){
+        particle_t  *temp = tempP;
+        //send particles
+        for(int i = 1; i < n_proc; ++i){
+            temp+=partition_offsets[i-1];
+            MPI_Send(tempP,partition_sizes[i]+(partition_sizes[i-1]-partition_offsets[i]),MPI_INT,i,0,MPI_COMM_WORLD);
+        }
+    }
+    else{
+        MPI_Recv(local,*localCount,PARTICLE,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+        //put particles in local bins
+        particle_t p;
+        for(int i =0; i < *localCount; ++i){
+            p= local[i];
+
+            int x = floor(p.x/myconst)+1;
+            int y = floor(p.y/myconst)+1;
+            bins[x*nn + y].push_front(&p);
+        }
+    }
+
     //
     //  simulate a number of time steps
     //
@@ -71,6 +130,11 @@ int main( int argc, char **argv )
             navg = 0;
             davg = 0.0;
             dmin = 1.0;
+
+            if( find_option( argc, argv, "-no" ) == -1 )
+                if( fsave && (step%SAVEFREQ) == 0 )
+                    save( fsave, n, particles );
+
             //
             //  compute forces
             //
@@ -167,35 +231,38 @@ int main( int argc, char **argv )
 
                 }
             }
-            //clear bins
-            if(rank == 0) {
-                for (int i = 0; i < binslength; ++i) {
-                    bins[i].clear();
-                }
+            for (int i = 0; i < binslength; ++i) {
+                bins[i].clear();
             }
+
 
 
             //
             //  move particles
             //
-            for (int i = 0; i < n; i++)
-                move(particles[i], bins);
+            for (int i = 0; i < *localCount; i++)
+                move(local[i]);
+
+
+            //DIVIDE PARTICLES BACK UP
 
             if (find_option(argc, argv, "-no") == -1) {
+                MPI_Reduce(&davg,&rdavg,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
+                MPI_Reduce(&navg,&rnavg,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
+                MPI_Reduce(&dmin,&rdmin,1,MPI_DOUBLE,MPI_MIN,0,MPI_COMM_WORLD);
                 //
                 // Computing statistical data
                 //
-                if (navg) {
-                    absavg += davg / navg;
-                    nabsavg++;
+                if (rank == 0){
+                    //
+                    // Computing statistical data
+                    //
+                    if (rnavg) {
+                        absavg +=  rdavg/rnavg;
+                        nabsavg++;
+                    }
+                    if (rdmin < absmin) absmin = rdmin;
                 }
-                if (dmin < absmin) absmin = dmin;
-
-                //
-                //  save if necessary
-                //
-                if (fsave && (step % SAVEFREQ) == 0)
-                    save(fsave, n, particles);
             }
         }
     }
@@ -227,6 +294,7 @@ int main( int argc, char **argv )
             fprintf(fsum,"%d %d %g\n",n,n_proc,simulation_time);
     }
 
+
     //
     //  release resources
     //
@@ -238,7 +306,7 @@ int main( int argc, char **argv )
     free( particles );
     if( fsave )
         fclose( fsave );
-
     MPI_Finalize( );
-    return 0;
+    return  0;
+
 }

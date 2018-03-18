@@ -19,7 +19,6 @@ int rowSize;
 #define cutoff  0.01
 #define min_r   (cutoff/100)
 #define dt      0.0005
-#define myconst .008
 //
 //  timer
 //
@@ -135,7 +134,7 @@ void apply_force( particle_t &particle, particle_t &neighbor , double *dmin, dou
 //
 //  integrate the ODE
 //
-void move( particle_t &p, std::vector<std::list<particle_t*> > &v )
+void move( particle_t &p)
 {
     //
     //  slightly simplified Velocity Verlet integration
@@ -159,9 +158,6 @@ void move( particle_t &p, std::vector<std::list<particle_t*> > &v )
         p.y  = p.y < 0 ? -p.y : 2*size-p.y;
         p.vy = -p.vy;
     }
-    int x = floor(p.x/myconst)+1;
-    int y = floor(p.y/myconst)+1;
-    v[x*rowSize + y].push_front(&p);
 }
 
 //
