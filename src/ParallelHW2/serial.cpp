@@ -149,7 +149,7 @@ int main( int argc, char **argv )
     //
     double simulation_time = read_timer( );
     {
-        for (int step = 0; step < NSTEPS; step++) {
+        for (int step = 0; step < 100; step++) {
             navg = 0;
             davg = 0.0;
             dmin = 1.0;
@@ -268,6 +268,112 @@ int main( int argc, char **argv )
 
             //DIVIDE PARTICLES BACK UP
 
+
+            //send all particles back to root
+            MPI_Request sendRequest;
+            if(rank != 0){
+                //cout<<"main send"<<endl;
+                MPI_Isend(local,*localCount,PARTICLE,0,0,MPI_COMM_WORLD,&sendRequest);
+                //MPI_Isend(local,*localCount,PARTICLE,0,0,MPI_COMM_WORLD);
+            }
+            else if(rank ==0){
+                //cout<<"rank main loop "<<rank<<endl;
+                particle_t  *temp = tempP;
+                //send particles
+                int y;
+                for(int i = 1; i < n_proc; ++i){
+                    temp+=partition_offsets[i];
+                    y = partition_sizes[i]+(partition_sizes[i-1]-partition_offsets[i]);
+                    MPI_Recv(temp,y,PARTICLE,i,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                }
+                //cout<<"finished recv"<<endl;
+
+            }
+            //MPI_Wait(&sendRequest,MPI_STATUS_IGNORE);
+            //put particles into bins and thenget particles out of bins and order them in a list to be sent to other processes
+            if(rank == 0) {
+                particle_t p;
+                for(int i =0; i < n; ++i){
+                    p= tempP[i];
+
+                    int x = floor(p.x/myconst)+1;
+                    int y = floor(p.y/myconst)+1;
+                    bins[x*nn + y].push_front(&p);
+                }
+                int lengthper = nn/n_proc;
+                for(int i = 1; i < n_proc; ++i){
+                    int count = 0;
+                    for(int j = 0; j < lengthper; ++j){
+                        if(j == lengthper-nn){
+                            partition_offsets[i+1] = count;
+                        }
+                        //x*rowSize + y
+                        for(int index = 0; index < nn; ++index){
+                            while(bins[(i+j)*nn+index].size()>0) {
+                                tempP[j + partition_sizes[i - 1]] = *bins[(i+j) * nn + index].front();
+                                bins[(i+j) * nn + index].pop_front();
+                                ++count;
+                            }
+                        }
+                    }
+                    //cout<<"COUNT " << count<<" RANK" << rank <<endl;
+                    partition_sizes[i] = count;
+                }
+                //send to each process how many particles to receive
+                int *x = new int;
+                int y = 1;
+                for(int i =1; i < n_proc; ++i){
+                    *x = partition_sizes[i]+(partition_sizes[i-1]-partition_offsets[i]);
+                    MPI_Send(x,y,MPI_INT,i,0,MPI_COMM_WORLD);
+                    //cout<<*x<<" send "<<i<<endl;
+                }
+                //cout << "after first send"<<endl;
+                int index = 0;
+                for(int i = 0; i < binslength; ++i){
+                    while(bins[i].size()>0){
+                        local[index] = *bins[i].front();
+                        bins[i].pop_front();
+                        index++;
+                    }
+
+                }
+                //cout<<"end if rank 0"<<endl;
+            }
+            else{
+                int y = 1;
+                MPI_Recv(localCount,y,MPI_INT,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                //cout <<"after first recv "<<*localCount<<endl;
+
+            }
+            //send particles back out to processes
+            if(rank == 0){
+                particle_t  *temp = tempP;
+                //send particles
+                int y;
+                for(int i = 1; i < n_proc; ++i){
+                   // cout<<partition_offsets[i]<<endl;
+                    temp+=partition_offsets[i];
+                    y = partition_sizes[i]+(partition_sizes[i-1]-partition_offsets[i]);
+                    MPI_Send(temp,y,PARTICLE,i,0,MPI_COMM_WORLD);
+                }
+               // cout<<"after send particles"<<endl;
+            }
+            else{
+                //cout<<"Local "<< *localCount <<endl;
+                MPI_Recv(local,*localCount,PARTICLE,0,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+                //cout<<"after 2nd rec"<<endl;
+                //put particles in local bins
+                particle_t p;
+                for(int i =0; i < *localCount; ++i){
+                    p= local[i];
+
+                    int x = floor(p.x/myconst)+1;
+                    int y = floor(p.y/myconst)+1;
+                    bins[x*nn + y].push_front(&p);
+                }
+            }
+
+            //cout<<step<<endl;
             if (find_option(argc, argv, "-no") == -1) {
                 MPI_Reduce(&davg,&rdavg,1,MPI_DOUBLE,MPI_SUM,0,MPI_COMM_WORLD);
                 MPI_Reduce(&navg,&rnavg,1,MPI_INT,MPI_SUM,0,MPI_COMM_WORLD);
