@@ -2,7 +2,7 @@
 #define __CS267_COMMON_H__
 #include "list"
 #include "vector"
-#define myconst .008
+#define myconst .1
 
 inline int min( int a, int b ) { return a < b ? a : b; }
 inline int max( int a, int b ) { return a > b ? a : b; }
